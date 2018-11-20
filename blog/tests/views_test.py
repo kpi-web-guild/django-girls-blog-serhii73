@@ -38,34 +38,51 @@ class PostListTest(TestCase):
         del self.post_second
         del self.post_third
 
-    def test_post_list(self):
-        """Test show post list on the page."""
+    def test_post_list_correct_order(self):
+        """Test show post list on the page and test correct order."""
         response = self.client.get(reverse('post_list'))
-        self.assertEqual(response.status_code, 200)
+        assert response.status_code == 200
 
         self.assertTemplateUsed(
             response, 'blog/post_list.html', 'blog/base.html'
         )
-        self.assertEqual(len(response.context['posts']), 2)
+        assert len(response.context['posts']) == 2
+        assert [
+            ['Title Bob', 'Text bob'],
+            ['Title John', 'Text John'],
+            ['Title John 2', 'Text John 2'],
+        ] == [[i.title, i.text] for i in Post.objects.all()]
+        assert [
+            ['Title John', 'Text John'],
+            ['Title Bob', 'Text bob'],
+            ['Title John 2', 'Text John 2'],
+        ] == [
+            [i.title, i.text] for i in Post.objects.order_by('published_date')
+        ]
 
     def test_post_detail(self):
-        """Test post detail."""
+        """Test post contents displayed correctly."""
         response = self.client.get(reverse('post_detail', kwargs={'pk': 1}))
-        self.assertEqual(response.status_code, 200)
+        assert response.status_code == 200
 
         self.assertTemplateUsed(
             response, 'blog/post_detail.html', 'blog/base.html'
         )
 
-        self.assertIn(b'Title Bob', response.content)
-        self.assertIn(b'Text bob', response.content)
-
-        self.assertEqual(str(response.context['post']), 'Title Bob')
+        self.assertIn(
+            str.encode(Post.objects.filter(pk=1)[0].title), response.content
+        )
+        self.assertIn(
+            str.encode(Post.objects.filter(pk=1)[0].text), response.content
+        )
+        assert (
+            str(response.context['post']) == Post.objects.filter(pk=1)[0].title
+        )
 
     def test_post_new_and_edit(self):
         """Test create and edit post."""
         response = self.client.get(reverse('post_new'))
-        self.assertEqual(response.status_code, 200)
+        assert response.status_code == 200
 
         paul_password = 'test'
         paul = User.objects.create_superuser(
@@ -82,7 +99,7 @@ class PostListTest(TestCase):
             },
             follow=True,
         )
-        self.assertEqual(200, response.status_code)
+        assert response.status_code == 200
 
         self.assertTemplateUsed(
             response, 'blog/post_detail.html', 'blog/base.html'

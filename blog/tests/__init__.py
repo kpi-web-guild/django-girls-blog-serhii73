@@ -1,1 +1,1 @@
-"""This module contains tests for the Blog app."""
+"""This package contains tests for the models and views of Blog app."""
