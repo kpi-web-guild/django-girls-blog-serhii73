@@ -1,4 +1,4 @@
-"""Tests for models of Blog app."""
+"""Tests for models."""
 
 from datetime import datetime
 from unittest.mock import patch
@@ -11,26 +11,26 @@ from ..models import Post
 
 
 class PostModelTest(TestCase):
-    """Tests for Post model."""
+    """Tests for post model."""
 
     def setUp(self):
         """Set up non-modifiable objects used by all test methods."""
         self.post = Post.objects.create(
-            author=User.objects.create(username='bob'),
-            title='Title',
-            text='A few lines of text',
+            author=User.objects.create(username="bob"),
+            title="Title",
+            text="A few lines of text",
         )
 
     def tearDown(self):
         """Clean-up test data."""
         del self.post
 
-    def test_str_method(self):
-        """Test for __str__ method."""
-        assert self.post.__str__() == 'Title'
+    def test_right_title(self):
+        """Test right title output."""
+        assert str(self.post) == "Title"
 
     @patch(
-        'django.utils.timezone.now',
+        "django.utils.timezone.now",
         lambda: datetime(
             day=11, month=9, year=2018, tzinfo=timezone.get_current_timezone()
         ),
