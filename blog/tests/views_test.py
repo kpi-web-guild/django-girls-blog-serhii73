@@ -14,21 +14,21 @@ class PostListTest(TestCase):
 
     def setUp(self):
         """Set up non-modifiable objects used by all test methods."""
-        bob = User.objects.create(username="bob")
+        bob = User.objects.create(username='bob')
         self.post_first = Post.objects.create(
             author=bob,
-            title="Title Bob",
-            text="Text bob",
+            title='Title Bob',
+            text='Text bob',
             published_date=datetime(day=8, month=11, year=2018),
         )
 
-        john = User.objects.create(username="john")
+        john = User.objects.create(username='john')
 
         self.post_second = Post.objects.create(
-            author=john, title="Title John", text="Text John"
+            author=john, title='Title John', text='Text John'
         )
         self.post_third = Post.objects.create(
-            author=john, title="Title John 2", text="Text John 2"
+            author=john, title='Title John 2', text='Text John 2'
         )
         self.post_third.publish()
 
@@ -40,93 +40,101 @@ class PostListTest(TestCase):
 
     def test_post_list_correct_order(self):
         """Test show post list on the page and test correct order."""
-        response = self.client.get(reverse("post_list"))
+        response = self.client.get(reverse('post_list'))
         assert response.status_code == 200
 
         self.assertTemplateUsed(
-            response, "blog/post_list.html", "blog/base.html"
+            response, 'blog/post_list.html', 'blog/base.html'
         )
-        assert len(response.context["posts"]) == 2
-        assert [
-            ["Title Bob", "Text bob"],
-            ["Title John", "Text John"],
-            ["Title John 2", "Text John 2"],
-        ] == [[i.title, i.text] for i in Post.objects.all()]
-        assert [
-            ["Title John", "Text John"],
-            ["Title Bob", "Text bob"],
-            ["Title John 2", "Text John 2"],
-        ] == [
-            [i.title, i.text] for i in Post.objects.order_by("published_date")
-        ]
+
+        assert len(response.context['posts']) == 2
+
+        first_title_on_the_page = response.context['posts'][0].title
+        first_text_on_the_page = response.context['posts'][0].text
+
+        second_title_on_the_page = response.context['posts'][1].title
+        second_text_on_the_page = response.context['posts'][1].text
+
+        assert first_title_on_the_page == 'Title John 2'
+        assert first_text_on_the_page == 'Text John 2'
+
+        assert second_title_on_the_page == 'Title Bob'
+        assert second_text_on_the_page == 'Text bob'
 
     def test_post_detail(self):
         """Test post contents displayed correctly."""
-        response = self.client.get(reverse("post_detail", kwargs={"pk": 1}))
+        response = self.client.get(reverse('post_detail', kwargs={'pk': 1}))
         assert response.status_code == 200
 
         self.assertTemplateUsed(
-            response, "blog/post_detail.html", "blog/base.html"
+            response, 'blog/post_detail.html', 'blog/base.html'
         )
 
-        self.assertIn(
-            str.encode(Post.objects.filter(pk=1)[0].title), response.content
-        )
-        self.assertIn(
-            str.encode(Post.objects.filter(pk=1)[0].text), response.content
-        )
-        assert (
-            str(response.context["post"]) == Post.objects.filter(pk=1)[0].title
-        )
+        title_detail_db = Post.objects.filter(pk=1)[0].title
+        title_detail_page = response.context['post'].title
+
+        assert title_detail_db == title_detail_page
+
+        text_detail_db = Post.objects.filter(pk=1)[0].text
+        text_detail_page = response.context['post'].text
+
+        assert text_detail_db == text_detail_page
 
     def test_post_new_and_edit(self):
         """Test create and edit post."""
-        response = self.client.get(reverse("post_new"))
+        response = self.client.get(reverse('post_new'))
         assert response.status_code == 200
 
-        paul_password = "test"
+        paul_password = 'test'
         paul = User.objects.create_superuser(
-            username="paul", password=paul_password, email="e@e.com"
+            username='paul', password=paul_password, email='e@e.com'
         )
         self.client.login(username=paul.username, password=paul_password)
 
         response = self.client.post(
-            reverse("post_new"),
+            reverse('post_new'),
             {
-                "author": paul,
-                "title": "Post with post new",
-                "text": "Text with post new",
+                'author': paul,
+                'title': 'Post with post new',
+                'text': 'Text with post new',
             },
             follow=True,
         )
         assert response.status_code == 200
 
         self.assertTemplateUsed(
-            response, "blog/post_detail.html", "blog/base.html"
-        )
-        self.assertIn(
-            str.encode(Post.objects.filter(pk=4)[0].title), response.content
-        )
-        self.assertIn(
-            str.encode(Post.objects.filter(pk=4)[0].text), response.content
+            response, 'blog/post_detail.html', 'blog/base.html'
         )
 
+        title_new_in_db = Post.objects.filter(pk=4)[0].title
+        title_new_on_the_page = response.context['post'].title
+
+        assert title_new_in_db == title_new_on_the_page
+
+        text_new_in_db = Post.objects.filter(pk=4)[0].text
+        text_new_on_the_page = response.context['post'].text
+
+        assert text_new_in_db == text_new_on_the_page
+
         response = self.client.post(
-            reverse("post_edit", kwargs={"pk": 1}),
+            reverse('post_edit', kwargs={'pk': 4}),
             {
-                "author": paul,
-                "title": "Post with post edit",
-                "text": "Text with post edit",
+                'author': paul,
+                'title': 'Post with post edit',
+                'text': 'Text with post edit',
             },
             follow=True,
         )
 
-        self.assertIn(
-            str.encode(Post.objects.filter(pk=1)[0].title), response.content
-        )
-        self.assertIn(
-            str.encode(Post.objects.filter(pk=1)[0].text), response.content
-        )
+        title_edit_in_db = Post.objects.filter(pk=4)[0].title
+        title_edit_on_the_page = response.context['post'].title
 
-        response = self.client.get(reverse("post_edit", kwargs={"pk": 1}))
+        assert title_edit_in_db == title_edit_on_the_page
+
+        text_edit_in_db = Post.objects.filter(pk=1)[0].text
+        text_edit_on_the_page = response.context['post'].text
+
+        assert text_edit_in_db == text_edit_on_the_page
+
+        response = self.client.get(reverse('post_edit', kwargs={'pk': 1}))
         assert response.status_code == 200
