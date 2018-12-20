@@ -1,10 +1,13 @@
 """Test for views."""
 
 from datetime import datetime
+from unittest.mock import patch
 
+from bs4 import BeautifulSoup
 from django.contrib.auth.models import User
-from django.test import TestCase
+from django.test import Client, TestCase
 from django.urls import reverse
+from django.utils import timezone
 
 from ..models import Post
 
@@ -14,116 +17,175 @@ class PostListTest(TestCase):
 
     def setUp(self):
         """Set up non-modifiable objects used by all test methods."""
-        bob = User.objects.create(username="bob")
-        self.post_first = Post.objects.create(
-            author=bob,
-            title="Title Bob",
-            text="Text bob",
-            published_date=datetime(day=8, month=11, year=2018),
+        self.time_z = timezone.get_current_timezone()
+        self.client = Client()
+        self.user = User.objects.create_superuser(
+            username='bob', password='password', email='email@email.com'
+        )
+        self.test_user2 = User.objects.create_user(
+            username='testuser2', password='12345'
         )
 
-        john = User.objects.create(username="john")
+        self.post_first = Post.objects.create(
+            author=self.user,
+            title='Title post first',
+            text='Text post first',
+            published_date=datetime(
+                day=8, month=11, year=2018, tzinfo=self.time_z
+            ),
+        )
 
         self.post_second = Post.objects.create(
-            author=john, title="Title John", text="Text John"
+            author=self.user,
+            title='Title post second',
+            text='Text post second',
+            published_date=datetime(
+                day=8, month=11, year=2016, tzinfo=self.time_z
+            ),
         )
+
         self.post_third = Post.objects.create(
-            author=john, title="Title John 2", text="Text John 2"
+            author=self.user,
+            title='Title post third',
+            text='Text post third',
+            published_date=datetime(
+                day=8, month=11, year=2014, tzinfo=self.time_z
+            ),
         )
-        self.post_third.publish()
 
     def tearDown(self):
         """Clean-up test data."""
+        del self.time_z
+        del self.client
+        del self.user
+        del self.test_user2
+
         del self.post_first
         del self.post_second
         del self.post_third
 
+    def test_logged_correct_temp(self):
+        """The user is logged in and used the correct template."""
+        self.client.login(username='bob', password='password')
+        resp = self.client.get(reverse('post_list'))
+
+        self.assertEqual(str(resp.context['user']), 'bob')
+        self.assertEqual(resp.status_code, 200)
+        self.assertTemplateUsed(resp, 'blog/post_list.html')
+
     def test_post_list_correct_order(self):
         """Test show post list on the page and test correct order."""
-        response = self.client.get(reverse("post_list"))
-        assert response.status_code == 200
+        with patch(
+            'django.utils.timezone.now',
+            lambda: datetime(day=1, month=1, year=2018, tzinfo=self.time_z),
+        ):
+            self.client.login(username='bob', password='password')
+            resp = self.client.get(reverse('post_list'))
+            posts = resp.context['posts']
 
-        self.assertTemplateUsed(response, "blog/post_list.html", "blog/base.html")
+            assert posts.first().title == 'Title post second'
+            assert posts.first().text == 'Text post second'
+            assert posts.first().published_date, datetime(
+                day=8, month=11, year=2016, tzinfo=self.time_z
+            )
 
-        assert len(response.context["posts"]) == 2
+            assert posts.last().title == 'Title post third'
+            assert posts.last().text == 'Text post third'
+            assert posts.last().published_date, datetime(
+                day=8, month=11, year=2014, tzinfo=self.time_z
+            )
 
-        first_title_on_the_page = response.context["posts"][0].title
-        first_text_on_the_page = response.context["posts"][0].text
-
-        second_title_on_the_page = response.context["posts"][1].title
-        second_text_on_the_page = response.context["posts"][1].text
-
-        assert first_title_on_the_page == "Title John 2"
-        assert first_text_on_the_page == "Text John 2"
-
-        assert second_title_on_the_page == "Title Bob"
-        assert second_text_on_the_page == "Text bob"
+            soup = BeautifulSoup(str(resp.content), 'html.parser')
+            posts = [
+                i.text.replace('\\n', '').strip() for i in soup.find_all('h1')
+            ][1:]
+            assert posts == ['Title post second', 'Title post third']
 
     def test_post_detail(self):
         """Test post contents displayed correctly."""
-        response = self.client.get(reverse("post_detail", kwargs={"pk": 1}))
+        response = self.client.get(reverse('post_detail', kwargs={'pk': 1}))
         assert response.status_code == 200
 
-        self.assertTemplateUsed(response, "blog/post_detail.html", "blog/base.html")
+        self.assertTemplateUsed(
+            response, 'blog/post_detail.html', 'blog/base.html'
+        )
 
         title_detail_db = Post.objects.filter(pk=1)[0].title
-        title_detail_page = response.context["post"].title
+        title_detail_page = response.context['post'].title
 
         assert title_detail_db == title_detail_page
 
         text_detail_db = Post.objects.filter(pk=1)[0].text
-        text_detail_page = response.context["post"].text
+        text_detail_page = response.context['post'].text
 
         assert text_detail_db == text_detail_page
 
-    def test_post_new_and_edit(self):
-        """Test create and edit post."""
-        response = self.client.get(reverse("post_new"))
+    def test_post_detail_not_exist_post(self):
+        """Test if the post does not exist."""
+        response = self.client.get(reverse('post_detail', kwargs={'pk': 11}))
+        self.assertEqual(404, response.status_code)
+
+    def test_post_new_anonymous_user(self):
+        """Test create post, anonymousUser."""
+        response = self.client.get(reverse('post_new'))
         assert response.status_code == 200
 
-        paul_password = "test"
-        paul = User.objects.create_superuser(
-            username="paul", password=paul_password, email="e@e.com"
-        )
-        self.client.login(username=paul.username, password=paul_password)
+        with self.assertRaises(Exception) as context:
+            self.client.post(
+                reverse('post_new'),
+                {
+                    'author': 'paul',
+                    'title': 'Post with post new',
+                    'text': 'Text with post new',
+                },
+                follow=True,
+            )
+
+        assert '"Post.author" must be a "User"' in str(context.exception)
+
+    def test_post_new_and_edit(self):
+        """Test create and edit post."""
+        self.client.login(username='testuser2', password='12345')
 
         response = self.client.post(
-            reverse("post_new"),
+            reverse('post_new'),
             {
-                "author": paul,
-                "title": "Post with post new",
-                "text": "Text with post new",
+                'author': 'testuser2',
+                'title': 'Post with post new',
+                'text': 'Text with post new',
             },
             follow=True,
         )
         assert response.status_code == 200
 
-        self.assertTemplateUsed(response, "blog/post_detail.html", "blog/base.html")
+        self.assertTemplateUsed(
+            response, 'blog/post_detail.html', 'blog/base.html'
+        )
 
         title_new_in_db = Post.objects.filter(pk=4)[0].title
-        title_new_on_the_page = response.context["post"].title
+        title_new_on_the_page = response.context['post'].title
 
         assert title_new_in_db == title_new_on_the_page
 
         text_new_in_db = Post.objects.filter(pk=4)[0].text
-        text_new_on_the_page = response.context["post"].text
+        text_new_on_the_page = response.context['post'].text
 
         assert text_new_in_db == text_new_on_the_page
 
         response = self.client.post(
-            reverse("post_edit", kwargs={"pk": 4}),
+            reverse('post_edit', kwargs={'pk': 4}),
             {
-                "author": paul,
-                "title": "Post with post edit",
-                "text": "Text with post edit",
+                'author': 'testuser2',
+                'title': 'Post with post edit',
+                'text': 'Text with post edit',
             },
             follow=True,
         )
 
         title_edit_in_db = Post.objects.filter(pk=4)[0].title
-        title_edit_on_the_page = response.context["post"].title
+        title_edit_on_the_page = response.context['post'].title
 
         assert title_edit_in_db == title_edit_on_the_page
 
-        response = self.client.get(reverse("post_edit", kwargs={"pk": 1}))
+        response = self.client.get(reverse('post_edit', kwargs={'pk': 1}))
         assert response.status_code == 200

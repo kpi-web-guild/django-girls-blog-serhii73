@@ -16,9 +16,9 @@ class PostModelTest(TestCase):
     def setUp(self):
         """Set up non-modifiable objects used by all test methods."""
         self.post = Post.objects.create(
-            author=User.objects.create(username="bob"),
-            title="Title",
-            text="A few lines of text",
+            author=User.objects.create(username='bob'),
+            title='Title',
+            text='A few lines of text',
         )
 
     def tearDown(self):
@@ -27,10 +27,10 @@ class PostModelTest(TestCase):
 
     def test_post_str(self):
         """Test post stringification."""
-        assert str(self.post) == "Title"
+        assert str(self.post) == 'Title'
 
     @patch(
-        "django.utils.timezone.now",
+        'django.utils.timezone.now',
         lambda: datetime(
             day=11, month=9, year=2018, tzinfo=timezone.get_current_timezone()
         ),
