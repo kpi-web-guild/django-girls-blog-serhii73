@@ -101,34 +101,34 @@ class PostListTest(TestCase):
             ][1:]
             assert posts == ['Title post second', 'Title post third']
 
+            self.assertTemplateUsed(
+                resp, 'blog/post_list.html', 'blog/base.html'
+            )
+
     def test_post_detail(self):
         """Test post contents displayed correctly."""
-        response = self.client.get(reverse('post_detail', kwargs={'pk': 1}))
-        assert response.status_code == 200
+        resp = self.client.get(reverse('post_detail', kwargs={'pk': 1}))
+        assert resp.status_code == 200
 
         self.assertTemplateUsed(
-            response, 'blog/post_detail.html', 'blog/base.html'
+            resp, 'blog/post_detail.html', 'blog/base.html'
         )
 
-        title_detail_db = Post.objects.filter(pk=1)[0].title
-        title_detail_page = response.context['post'].title
+        title_detail_page = resp.context['post'].title
+        assert title_detail_page == 'Title post first'
 
-        assert title_detail_db == title_detail_page
-
-        text_detail_db = Post.objects.filter(pk=1)[0].text
-        text_detail_page = response.context['post'].text
-
-        assert text_detail_db == text_detail_page
+        text_detail_page = resp.context['post'].text
+        assert text_detail_page == 'Text post first'
 
     def test_post_detail_not_exist_post(self):
         """Test if the post does not exist."""
-        response = self.client.get(reverse('post_detail', kwargs={'pk': 11}))
-        self.assertEqual(404, response.status_code)
+        resp = self.client.get(reverse('post_detail', kwargs={'pk': 11}))
+        self.assertEqual(404, resp.status_code)
 
     def test_post_new_anonymous_user(self):
         """Test create post, anonymousUser."""
-        response = self.client.get(reverse('post_new'))
-        assert response.status_code == 200
+        resp = self.client.get(reverse('post_new'))
+        assert resp.status_code == 200
 
         with self.assertRaises(Exception) as context:
             self.client.post(
@@ -142,12 +142,13 @@ class PostListTest(TestCase):
             )
 
         assert '"Post.author" must be a "User"' in str(context.exception)
+        self.assertTemplateUsed(resp, 'blog/post_edit.html', 'blog/base.html')
 
     def test_post_new_and_edit(self):
         """Test create and edit post."""
         self.client.login(username='testuser2', password='12345')
 
-        response = self.client.post(
+        resp = self.client.post(
             reverse('post_new'),
             {
                 'author': 'testuser2',
@@ -156,23 +157,19 @@ class PostListTest(TestCase):
             },
             follow=True,
         )
-        assert response.status_code == 200
+        assert resp.status_code == 200
 
         self.assertTemplateUsed(
-            response, 'blog/post_detail.html', 'blog/base.html'
+            resp, 'blog/post_detail.html', 'blog/base.html'
         )
 
-        title_new_in_db = Post.objects.filter(pk=4)[0].title
-        title_new_on_the_page = response.context['post'].title
+        title_new_on_the_page = resp.context['post'].title
+        assert title_new_on_the_page == 'Post with post new'
 
-        assert title_new_in_db == title_new_on_the_page
+        text_new_on_the_page = resp.context['post'].text
+        assert text_new_on_the_page == 'Text with post new'
 
-        text_new_in_db = Post.objects.filter(pk=4)[0].text
-        text_new_on_the_page = response.context['post'].text
-
-        assert text_new_in_db == text_new_on_the_page
-
-        response = self.client.post(
+        resp = self.client.post(
             reverse('post_edit', kwargs={'pk': 4}),
             {
                 'author': 'testuser2',
@@ -182,10 +179,8 @@ class PostListTest(TestCase):
             follow=True,
         )
 
-        title_edit_in_db = Post.objects.filter(pk=4)[0].title
-        title_edit_on_the_page = response.context['post'].title
+        title_edit_on_the_page = resp.context['post'].title
+        assert title_edit_on_the_page == 'Post with post edit'
 
-        assert title_edit_in_db == title_edit_on_the_page
-
-        response = self.client.get(reverse('post_edit', kwargs={'pk': 1}))
-        assert response.status_code == 200
+        resp = self.client.get(reverse('post_edit', kwargs={'pk': 1}))
+        assert resp.status_code == 200
