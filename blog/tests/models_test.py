@@ -39,6 +39,7 @@ class PostModelTest(TestCase):
         """Test post has a published date after publish method called."""
         assert self.post.published_date is None
 
+        assert self.post.published_date is None
         self.post.publish()
 
         assert self.post.published_date == datetime(
